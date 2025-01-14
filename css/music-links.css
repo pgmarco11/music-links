@@ -1,0 +1,9 @@
+
+ul#music-stores li, ul.song-links li {
+    padding: 0 0.5rem 0 0;
+}
+ul#music-stores, ul.song-links {
+    display: flex;
+    flex-direction: row;
+    list-style: none;
+}
