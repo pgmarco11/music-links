@@ -7,3 +7,34 @@ ul#music-stores, ul.song-links {
     flex-direction: row;
     list-style: none;
 }
+
+a.music-store-link i, .song-links a i {
+    background-color: #1e004f;
+    padding: .8125rem .67rem;
+    border-radius: 4rem;
+    font-size: 1.5rem;
+    color: #f8f9fa !important;
+}
+a.music-store-link, .song-links a {
+    width: 100%; 
+    height: auto;
+    transition: filter 0.3s ease-in-out;
+    display:block;
+    position: relative;
+    display: inline-block;
+}
+a.music-store-link::before, .song-links a::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(30, 0, 79, 0);
+    pointer-events: none;
+}
+a.music-store-link:hover::before, .song-links a:hover::before {
+    background-color: rgba(30, 0, 79, 0.8); 
+    color:#fff;
+    border-radius: 4rem;
+}   

@@ -12,6 +12,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     die();
 }
 
+
 function custom_register_song_post_type() {
     register_post_type('album', [
         'labels' => [
@@ -39,9 +40,6 @@ function gp_add_meta_boxes() {
 add_action('add_meta_boxes', 'gp_add_meta_boxes');
 
 function song_link_callback($post) {
-    // Display a note for the shortcode
-    echo "<p><strong>Note:</strong> Use the shortcode <code>[song_links]</code> in your post to display the links added here.</p>";
-
     $links = [
         'itunes' => 'iTunes Link',
         'spotify' => 'Spotify Link',
@@ -53,19 +51,21 @@ function song_link_callback($post) {
         'pandora' => 'Pandora Link',
     ];
 
-    // Add icons to links
     foreach ($links as $key => $label) {
         $value = get_post_meta($post->ID, $key, true);
-        $icon_url = get_post_meta($post->ID, $key . '_icon', true);  // Get icon URL from meta
+        $icon_input = get_post_meta($post->ID, $key . '_icon', true);
+        
         echo "<p>{$label}: <input type='text' name='{$key}' value='{$value}' style='width:100%;' /></p>";
-
-        // Add input for the icon URL
-        echo "<p>{$label} Icon URL: <input type='text' name='{$key}_icon' value='{$icon_url}' style='width:100%;' placeholder='Icon URL' /></p>";
-
-        // Display the image preview if an icon URL is set
-        if($icon_url){
-            echo "<div id='upload_logo_preview_{$key}' style='background-image:url($icon_url); height:50px; width:50px; margin: 10px 0;'></div>";  
-        }             
+        echo "<p>{$label} Icon: <input type='text' name='{$key}_icon' value='". esc_attr($icon_input) ."' style='width:100%;' placeholder='Icon URL or Font Awesome Class' /></p>";
+        
+        if ($icon_input) {
+            // Display the preview if an icon URL or tag is set
+            if (filter_var($icon_input, FILTER_VALIDATE_URL)) {
+                echo "<div style='margin: 10px 0;'><img src='{$icon_input}' alt='{$label} Icon' style='height: 50px; width: 50px;'></div>";
+            } else {
+                echo "<div style='margin: 10px 0;'>". wp_kses_post($icon_input) . "</div>";
+            }
+        }
 
         echo "<button type='button' class='button select-img' data-target='{$key}_icon'>Select Image</button>";
     }
@@ -85,7 +85,7 @@ function wpdocs_save_meta_box($post_id, $post, $update) {
             update_post_meta($post_id, $field, esc_attr($_POST[$field]));
         }
         if (isset($_POST[$field . '_icon'])) {
-            update_post_meta($post_id, $field . '_icon', esc_url_raw($_POST[$field . '_icon']));
+            update_post_meta($post_id, $field . '_icon', wp_kses_post($_POST[$field . '_icon']));
         }
     }
 }
@@ -116,7 +116,7 @@ function msl_menu_page_content() {
         return;
     }
 
-    if ( isset($_POST['msl_submit']) ) {
+    if ( isset($_POST['msl_submit']) ) { 
         $links = array(
             'itunes' => sanitize_text_field($_POST['msl_itunes']),
             'spotify' => sanitize_text_field($_POST['msl_spotify']),
@@ -124,12 +124,12 @@ function msl_menu_page_content() {
             'cdbaby' => sanitize_text_field($_POST['msl_cdbaby']),
             'soundcloud' => sanitize_text_field($_POST['msl_soundcloud']),
             'bandcamp' => sanitize_text_field($_POST['msl_bandcamp']),
-            'itunes_icon' => esc_url_raw($_POST['msl_itunes_icon']),
-            'spotify_icon' => esc_url_raw($_POST['msl_spotify_icon']),
-            'amazon_icon' => esc_url_raw($_POST['msl_amazon_icon']),
-            'cdbaby_icon' => esc_url_raw($_POST['msl_cdbaby_icon']),
-            'soundcloud_icon' => esc_url_raw($_POST['msl_soundcloud_icon']),
-            'bandcamp_icon' => esc_url_raw($_POST['msl_bandcamp_icon']),
+            'itunes_icon' => wp_kses($_POST['msl_itunes_icon'], array('i' => array('class' => array()))), // Allow <i> tags with class attribute
+            'spotify_icon' => wp_kses($_POST['msl_spotify_icon'], array('i' => array('class' => array()))),
+            'amazon_icon' => wp_kses($_POST['msl_amazon_icon'], array('i' => array('class' => array()))),
+            'cdbaby_icon' => wp_kses($_POST['msl_cdbaby_icon'], array('i' => array('class' => array()))),
+            'soundcloud_icon' => wp_kses($_POST['msl_soundcloud_icon'], array('i' => array('class' => array()))),
+            'bandcamp_icon' => wp_kses($_POST['msl_bandcamp_icon'], array('i' => array('class' => array()))),
         );
         update_option('msl_links', $links);
         echo '<div id="message" class="updated notice is-dismissible"><p>' . __('Links updated.', 'music-store-links') . '</p></div>';
@@ -157,13 +157,19 @@ function msl_menu_page_content() {
                         <th scope="row"><?php echo $label; ?></th>
                         <td>
                             <input type="text" name="msl_<?php echo $key; ?>" value="<?php echo esc_attr($links[$key] ?? ''); ?>" class="regular-text" placeholder="<?php echo $label; ?> Link">
-                            <input type="text" id="msl_<?php echo $key; ?>_icon" name="msl_<?php echo $key; ?>_icon" value="<?php echo esc_attr($links[$key.'_icon'] ?? ''); ?>" class="regular-text" placeholder="<?php echo $label; ?> Icon URL">
+                            <input type="text" id="msl_<?php echo $key; ?>_icon" name="msl_<?php echo $key; ?>_icon" value="<?php echo esc_attr($links[$key.'_icon'] ?? ''); ?>" class="regular-text" placeholder="<?php echo $label; ?> Icon URL or FontAwesome icon">
                             <button type="button" class="button select-img" data-target="msl_<?php echo $key; ?>_icon"><?php _e('Select Image', 'music-store-links'); ?></button>
-                            <div id="upload_logo_preview_<?php echo $key; ?>" style="background-image:url('<?php echo esc_attr($links[$key.'_icon'] ?? ''); ?>');height: 50px;width: 50px;margin: 1rem 0;"></div>
+                            <?php 
+                            $icon_url = wp_kses_post($links[$key.'_icon'] ?? '');
+                            if (filter_var($icon_url, FILTER_VALIDATE_URL)) {
+                                echo "<div id='upload_logo_preview_$key' style='background-image:url($icon_url);height:50px;width:50px;margin:1rem 0;'></div>";
+                            } 
+                            ?>
                         </td>
                     </tr>
                     <?php
                 }
+                
                 ?>
             </table>
             <p class="submit">
@@ -173,6 +179,7 @@ function msl_menu_page_content() {
     </div>
     <?php
 }
+
 
 function display_song_links_shortcode($atts) {
     global $post;
@@ -195,14 +202,18 @@ function display_song_links_shortcode($atts) {
     $output = '<ul class="song-links">';
     foreach ($links as $key => $label) {
         $value = get_post_meta($post->ID, $key, true);
-        $icon = get_post_meta($post->ID, $key . '_icon', true); // Get the icon URL
+        $icon = get_post_meta($post->ID, $key . '_icon', true);
 
         if ($value) {
             $output .= "<li><a href='" . esc_url($value) . "' target='_blank'>";
             if ($icon) {
-                $output .= "<img src='" . esc_url($icon) . "' alt='" . esc_attr($label) . "' class='song-link-icon'> "; 
+                if (filter_var($icon, FILTER_VALIDATE_URL)) {
+                    $output .= "<img src='" . esc_url($icon) . "' alt='" . esc_attr($label) . "' class='song-link-icon'>";
+                } else {
+                    $output .=  wp_kses_post($icon);
+                }
             } else {
-                $output .= $label; 
+                $output .= $label;
             }
             $output .= "</a></li>";
         }
@@ -222,7 +233,20 @@ function msl_display_links_shortcode() {
     echo '<ul id="music-stores">';
     foreach ($links as $key => $url) {
         if ( strpos($key, '_icon') === false && !empty($url) ) {
-            $icon = !empty($links[$key.'_icon']) ? '<img src="'.esc_url($links[$key.'_icon']).'" alt="'.esc_attr(ucfirst($key)).' Icon" style="max-width:50px;">' : ucfirst($key);
+            $icon = $links[$key.'_icon'];
+            if (!empty($icon)) {
+                if (filter_var($icon, FILTER_VALIDATE_URL)) {
+                    // If the icon is a valid URL, use an <img> tag
+                    $icon = '<img src="' . esc_url($icon) . '" alt="' . esc_attr(ucfirst($key)) . ' Icon" style="max-width:50px;">';
+                } else {
+                    // If the icon is not a URL, assume it's HTML and allow it
+                    $icon = wp_kses_post($icon);
+                }
+            } else {
+                // Default to the name if no icon is set
+                $icon = ucfirst($key);
+            }
+
             echo '<li><a class="music-store-link" target="_blank" href="' . esc_url($url) . '">' . $icon . '</a></li>';
         }
     }
@@ -230,6 +254,7 @@ function msl_display_links_shortcode() {
     return ob_get_clean();
 }
 add_shortcode('music_store_links', 'msl_display_links_shortcode');
+
 
 
 function msl_shortcode_info() {
@@ -251,7 +276,13 @@ add_action('admin_enqueue_scripts', 'msl_enqueue_admin_scripts');
 
 
 // Enqueue stylesheet on the front end
-function msl_enqueue_frontend_styles() {    
-        wp_enqueue_style('msl-media-css', plugin_dir_url(__FILE__) . 'css/music-links.css', array(), null);    
+function msl_enqueue_frontend_styles() {
+    // Check if Font Awesome is already enqueued
+    if ( ! wp_style_is( 'font-awesome', 'enqueued' ) ) {
+        // If not, enqueue it
+        wp_enqueue_style( 'font-awesome', 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css', array(), null );
+    }
+
+    wp_enqueue_style( 'msl-media-css', plugin_dir_url(__FILE__) . 'css/music-links.css', array(), null );
 }
 add_action('wp_enqueue_scripts', 'msl_enqueue_frontend_styles');
